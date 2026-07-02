@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AvaloniaVersion>11.2.3</AvaloniaVersion>
+    <AssemblyName>CockpitDisplay</AssemblyName>
+    <RootNamespace>CockpitDisplay</RootNamespace>
+    <!-- Pi deployment: pass -r linux-arm64 at publish time -->
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- Suppress vulnerability warnings in transitive deps (offline embedded device) -->
+    <NuGetAuditMode>direct</NuGetAuditMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Avalonia + X11 backend (no desktop environment needed) -->
+    <PackageReference Include="Avalonia"                Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop"        Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent"  Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Fonts.Inter"    Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Skia"           Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.ReactiveUI"     Version="$(AvaloniaVersion)" />
+    <!-- SkiaSharp for map/overlay rendering -->
+    <PackageReference Include="SkiaSharp"                        Version="2.88.9" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux"     Version="2.88.9" />
+    <!-- MBTiles SQLite reader -->
+    <PackageReference Include="Microsoft.Data.Sqlite"            Version="9.0.5" />
+    <!-- MVVM (ObservableObject, RelayCommand) -->
+    <PackageReference Include="CommunityToolkit.Mvvm"            Version="8.4.0" />
+    <!-- ReactiveUI -->
+    <PackageReference Include="ReactiveUI"                       Version="20.1.1" />
+    <!-- DRM/KMS framebuffer backend for Pi without display server -->
+    <PackageReference Include="Avalonia.LinuxFramebuffer"        Version="$(AvaloniaVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Montserrat font asset -->
+    <AvaloniaResource Include="Assets\**\*" />
+    <AvaloniaResource Include="Assets\icons\default.png" />
+    <AvaloniaResource Include="Assets\icons\high_wing.png" />
+    <AvaloniaResource Include="Assets\icons\low_wing.png" />
+    <AvaloniaResource Include="Assets\icons\canard.png" />
+    <AvaloniaResource Include="Assets\icons\jet.png" />
+    <AvaloniaResource Include="Assets\icons\helicopter.png" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" />
+  </ItemGroup>
+
+</Project>

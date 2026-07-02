@@ -1,0 +1,398 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:CockpitDisplay.ViewModels"
+             xmlns:local="clr-namespace:CockpitDisplay.Views"
+             x:Class="CockpitDisplay.Views.CockpitView"
+             x:DataType="vm:MainViewModel"
+             Width="480" Height="480"
+             Background="Black"
+             ClipToBounds="True">
+
+  <UserControl.Resources>
+    <local:EqualityConverter x:Key="EqConverter"/>
+  </UserControl.Resources>
+
+  <UserControl.Clip>
+    <EllipseGeometry Rect="0,0,480,480"/>
+  </UserControl.Clip>
+
+  <Panel Width="480" Height="480">
+
+    <!-- Map background — SkiaCanvas inserted here by code-behind -->
+
+    <!--
+      STRIP GEOMETRY — exact values from index.html SVG paths × 1.6 scale:
+
+      LEFT (sweep=0, curves toward center of screen):
+        GS  : (0,144) → (74,144) arc→ (70,208) → (0,208)
+        ALT : (0,208) → (89,222) arc→ (89,258) → (0,258)   [95×1.6=152px radius]
+        HDG : (0,272) → (70,272) arc→ (85,317) → (0,317)
+
+      RIGHT (sweep=1, mirror):
+        TFC : (480,144) → (406,144) arc→ (410,208) → (480,208)
+        WX  : (480,208) → (391,222) arc→ (391,258) → (480,258)
+        SDR : (480,272) → (410,272) arc→ (395,317) → (480,317)
+
+      Note: the web app Y range is 90-210 in a 300-unit SVG at 500px screen.
+      At 480px, Y range = 144-336. But panels overlap slightly in the web SVG
+      (the corner arcs bridge them). We use exact Y endpoints from the SVG.
+    -->
+
+    <!-- ══ LEFT STRIP — exact paths from index.html SVG × 1.6 ══
+         GS/ALT/HDG panels with corner rounding + circle-following arc.
+         Left edge runs off-screen (x=0), inner edge follows circle arc. -->
+    <Canvas Width="480" Height="480" IsHitTestVisible="False">
+
+      <!-- GS: corner arc r=12.8 at top-right, then circle arc r=172.8 down to bottom-right -->
+      <Path Fill="#E0000000" Stroke="#00cfff" StrokeThickness="2.5"
+            Data="M -20,144 L 74.1,144 A 12.8,12.8 0 0,1 85.5,162.5 A 172.8,172.8 0 0,0 70.2,208 L -20,208 Z"/>
+
+      <!-- ALT: corner arcs r=12.8 top+bottom, circle arc r=152 in middle -->
+      <Path Fill="#E0000000" Stroke="#00cfff" StrokeThickness="2.5"
+            Data="M -20,208 L 76.3,208 A 12.8,12.8 0 0,1 89.0,222.3 A 152.0,152.0 0 0,0 89.0,257.7 A 12.8,12.8 0 0,1 76.3,272 L -20,272 Z"/>
+
+      <!-- HDG: circle arc r=172.8, then corner arc r=12.8 at bottom-right -->
+      <Path Fill="#E0000000" Stroke="#00cfff" StrokeThickness="2.5"
+            Data="M -20,272 L 70.2,272 A 172.8,172.8 0 0,0 85.5,317.5 A 12.8,12.8 0 0,1 74.1,336 L -20,336 Z"/>
+
+      <!-- GS: text-anchor=middle x=30*1.6=48, y=104*1.6=166 label / y=125*1.6=200 value -->
+      <!-- Use centered TextBlock with Width=96 (strip inner width) positioned at left=0 -->
+      <TextBlock Canvas.Left="0" Canvas.Top="150" Width="90" TextAlignment="Center"
+                 Text="GS" FontFamily="Montserrat" FontSize="19" FontWeight="Bold" Foreground="#00cfff"/>
+      <TextBlock Canvas.Left="0" Canvas.Top="170" Width="78" TextAlignment="Center"
+                 Text="{Binding GsDisplay}" FontFamily="Montserrat" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
+      <!-- ALT: x=28*1.6=45, y=144*1.6=230 label / y=165*1.6=264 value -->
+      <TextBlock Canvas.Left="0" Canvas.Top="215" Width="90" TextAlignment="Center"
+                 Text="ALT" FontFamily="Montserrat" FontSize="19" FontWeight="Bold" Foreground="#00cfff"/>
+      <TextBlock Canvas.Left="0" Canvas.Top="235" Width="88" TextAlignment="Center"
+                 Text="{Binding AltDisplay}" FontFamily="Montserrat" FontSize="22" FontWeight="SemiBold" Foreground="White"/>
+      <!-- HDG: x=24*1.6=38, y=184*1.6=294 label / y=205*1.6=328 value -->
+      <TextBlock Canvas.Left="0" Canvas.Top="279" Width="78" TextAlignment="Center"
+                 Text="HDG" FontFamily="Montserrat" FontSize="19" FontWeight="Bold" Foreground="#00cfff"/>
+      <TextBlock Canvas.Left="0" Canvas.Top="299" Width="90" TextAlignment="Center"
+                 Text="{Binding HdgDisplay}" FontFamily="Montserrat" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
+    </Canvas>
+
+    <!-- ══ RIGHT STRIP — exact SVG coords (not mirrored math, actual SVG x values × 1.6)
+         TFC: has corner arc top. WX: straight line to arc (no corners). SDR: corner arc bottom.
+         All three share inner arc x=409.6 (SVG x=256 × 1.6). -->
+    <Canvas Width="480" Height="480" IsHitTestVisible="False">
+
+      <!-- TFC: corner arc r=12.8 at top-left, then circle arc r=172.8 -->
+      <Path Fill="#E0000000" Stroke="#00cfff" StrokeThickness="2.5"
+            Data="M 500,144 L 405.9,144 A 12.8,12.8 0 0,0 394.5,162.5 A 172.8,172.8 0 0,1 409.6,208 L 500,208 Z"/>
+
+      <!-- WX: straight line directly to circle arc r=172.8 (no corner rounding) -->
+      <Path Fill="#E0000000" Stroke="#00cfff" StrokeThickness="2.5"
+            Data="M 500,208 L 409.6,208 A 172.8,172.8 0 0,1 409.6,272 L 500,272 Z"/>
+
+      <!-- SDR: circle arc r=172.8, then corner arc r=12.8 at bottom-left -->
+      <Path Fill="#E0000000" Stroke="#00cfff" StrokeThickness="2.5"
+            Data="M 500,272 L 409.6,272 A 172.8,172.8 0 0,1 394.5,317.5 A 12.8,12.8 0 0,0 405.9,336 L 500,336 Z"/>
+
+      <!-- TFC: text-anchor=middle x=270*1.6=432 → left edge=432-48=384, width=96 -->
+      <TextBlock Canvas.Left="390" Canvas.Top="150" Width="90" TextAlignment="Center"
+                 Text="TFC" FontFamily="Montserrat" FontSize="19" FontWeight="Bold" Foreground="#00cfff"/>
+      <TextBlock Canvas.Left="402" Canvas.Top="170" Width="78" TextAlignment="Center"
+                 Text="{Binding TrafficCount}" FontFamily="Montserrat" FontSize="24" FontWeight="SemiBold" Foreground="White"/>
+      <!-- WX: x=280*1.6=448 → left=448-48=400, width=96 -->
+      <TextBlock Canvas.Left="400" Canvas.Top="215" Width="80" TextAlignment="Center"
+                 Text="WX" FontFamily="Montserrat" FontSize="19" FontWeight="Bold" Foreground="#00cfff"/>
+      <TextBlock x:Name="WxText" Canvas.Left="400" Canvas.Top="235" Width="80" TextAlignment="Center"
+                 Text="{Binding WxFresh, Converter={x:Static local:BoolToOkConverter.Instance}}"
+                 FontFamily="Montserrat" FontSize="24" FontWeight="SemiBold"
+                 Foreground="{Binding WxFresh, Converter={x:Static local:BoolToStatusColorConverter.Instance}}"/>
+      <!-- SDR: x=276*1.6=442 → left=442-48=394, width=96 -->
+      <TextBlock Canvas.Left="394" Canvas.Top="279" Width="86" TextAlignment="Center"
+                 Text="SDR" FontFamily="Montserrat" FontSize="19" FontWeight="Bold" Foreground="#00cfff"/>
+      <TextBlock x:Name="SdrText" Canvas.Left="390" Canvas.Top="299" Width="90" TextAlignment="Center"
+                 Text="{Binding StratuxConnected, Converter={x:Static local:BoolToOkConverter.Instance}}"
+                 FontFamily="Montserrat" FontSize="24" FontWeight="SemiBold"
+                 Foreground="{Binding StratuxConnected, Converter={x:Static local:BoolToStatusColorConverter.Instance}}"/>
+    </Canvas>
+
+    <!-- ══ NORTH INDICATOR ═══════════════════════════════ -->
+    <Canvas Width="480" Height="480" IsHitTestVisible="False">
+      <Canvas x:Name="NorthIndicator"
+              Canvas.Left="228" Canvas.Top="4"
+              Width="24" Height="38"
+              RenderTransformOrigin="50%,50%">
+        <Canvas.RenderTransform>
+          <RotateTransform Angle="0"/>
+        </Canvas.RenderTransform>
+        <Path Canvas.Left="0" Canvas.Top="0"
+              Data="M 12,0 L 18,20 L 12,15 L 6,20 Z"
+              Fill="#ff4444" Stroke="Black" StrokeThickness="1"/>
+        <Path Canvas.Left="0" Canvas.Top="18"
+              Data="M 12,20 L 18,0 L 12,5 L 6,0 Z"
+              Fill="White" Stroke="Black" StrokeThickness="1"/>
+      </Canvas>
+    </Canvas>
+
+    <!-- ══ GPS LOST ═══════════════════════════════════════ -->
+    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+            Margin="0,0,0,132" Padding="6,18"
+            Background="#E6000000" BorderBrush="#ffcc00" BorderThickness="3"
+            CornerRadius="8" IsVisible="{Binding !HasFix}">
+      <TextBlock Text="GPS SIGNAL LOST" FontFamily="Montserrat"
+                 FontSize="21" FontWeight="Black" Foreground="#ffcc00"/>
+    </Border>
+
+    <!-- ══ TRAFFIC ALERT ══════════════════════════════════ -->
+    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+            Margin="0,0,0,77" Padding="6,18"
+            Background="#E6000000" BorderBrush="#ff4444" BorderThickness="3"
+            CornerRadius="8" IsVisible="{Binding ProximateAlert}">
+      <TextBlock Text="TRAFFIC" FontFamily="Montserrat"
+                 FontSize="21" FontWeight="Black" Foreground="#ff4444"/>
+    </Border>
+
+    <!-- ══ BOTTOM BAR ════════════════════════════════════ -->
+    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+            Width="220" Background="#E0000000"
+            BorderBrush="#00cfff" BorderThickness="3,3,3,0"
+            CornerRadius="50,50,0,0">
+      <!-- grid-template-columns: 1fr 55px 1fr from style.css -->
+      <Grid ColumnDefinitions="*,55,*" Height="54" Margin="0,0,0,-2">
+        <!-- Options btn: font-size=32px, padding-right=14px, padding-bottom=16px -->
+        <Button Grid.Column="0" Classes="navbtn" Command="{Binding ToggleSettingsCommand}"
+                Background="Transparent" BorderThickness="0"
+                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                Padding="0,0,14,16">
+          <TextBlock Text="⚙" FontFamily="Montserrat" FontSize="32" FontWeight="Bold"
+                     Foreground="#00cfff"
+                     HorizontalAlignment="Right" VerticalAlignment="Top"/>
+        </Button>
+        <!-- Dividers go full height — no top margin -->
+        <Border Grid.Column="0" Width="3" Background="#00cfff"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch"/>
+        <!-- Zoom tag: number (22px bold) over unit (13px bold) — matches updateZoomLabel() in map.js -->
+        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Top"
+                    Spacing="0" Margin="0,2,0,0">
+          <TextBlock x:Name="ZoomNumberText"
+                     FontFamily="Montserrat" FontSize="22" FontWeight="Bold"
+                     Foreground="#00cfff" LetterSpacing="0.8"
+                     HorizontalAlignment="Center"/>
+          <TextBlock x:Name="ZoomUnitText"
+                     FontFamily="Montserrat" FontSize="13" FontWeight="Bold"
+                     Foreground="#00cfff" LetterSpacing="0.8"
+                     HorizontalAlignment="Center"/>
+        </StackPanel>
+        <!-- Page btn: font-size=20px, font-weight=700, width=60px -->
+        <Border Grid.Column="1" Width="3" Background="#00cfff"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch"/>
+        <Button Grid.Column="2" Classes="navbtn" Command="{Binding NextPageCommand}"
+                Background="Transparent" BorderThickness="0"
+                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                Padding="0,6,0,14">
+          <TextBlock Text="{Binding PageLabel}" FontFamily="Montserrat"
+                     FontSize="20" FontWeight="Bold" Foreground="#00cfff"
+                     Width="60" TextAlignment="Center"
+                     HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- ══ SETTINGS OVERLAY ══════════════════════════════ -->
+    <Border IsVisible="{Binding SettingsVisible}"
+            Width="480" Height="480" Background="#EB000000" ZIndex="100">
+      <Border.Clip><EllipseGeometry Rect="0,0,480,480"/></Border.Clip>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+        <TextBlock Text="SETTINGS" FontFamily="Montserrat" FontSize="24" FontWeight="Black"
+                   Foreground="#00cfff" LetterSpacing="2" HorizontalAlignment="Center"/>
+
+        <TextBlock Text="DEFAULT VIEW" FontFamily="Montserrat" FontSize="18" FontWeight="Bold"
+                   Foreground="#99cfff" HorizontalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+          <Button Content="SAT" Command="{Binding SetDefaultPageCommand}" CommandParameter="0" Classes="sb"
+                  Classes.active="{Binding ActiveDefaultPageValue, Converter={StaticResource EqConverter}, ConverterParameter=0}"/>
+          <Button Content="VFR" Command="{Binding SetDefaultPageCommand}" CommandParameter="1" Classes="sb"
+                  Classes.active="{Binding ActiveDefaultPageValue, Converter={StaticResource EqConverter}, ConverterParameter=1}"/>
+          <Button Content="IFR" Command="{Binding SetDefaultPageCommand}" CommandParameter="2" Classes="sb"
+                  Classes.active="{Binding ActiveDefaultPageValue, Converter={StaticResource EqConverter}, ConverterParameter=2}"/>
+          <Button Content="RADAR" Command="{Binding SetDefaultPageCommand}" CommandParameter="3" Classes="sb"
+                  Classes.active="{Binding ActiveDefaultPageValue, Converter={StaticResource EqConverter}, ConverterParameter=3}"/>
+        </StackPanel>
+
+        <Border Height="1" Width="200" Background="#33cfff"/>
+
+        <TextBlock Text="ALTITUDE FILTER" FontFamily="Montserrat" FontSize="18" FontWeight="Bold"
+                   Foreground="#99cfff" HorizontalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+          <Button Content="±1000" Command="{Binding SetAltFilterCommand}" CommandParameter="1000" Classes="sb"
+                  Classes.active="{Binding ActiveAltFilterValue, Converter={StaticResource EqConverter}, ConverterParameter=1000}"/>
+          <Button Content="±3000" Command="{Binding SetAltFilterCommand}" CommandParameter="3000" Classes="sb"
+                  Classes.active="{Binding ActiveAltFilterValue, Converter={StaticResource EqConverter}, ConverterParameter=3000}"/>
+          <Button Content="±5000" Command="{Binding SetAltFilterCommand}" CommandParameter="5000" Classes="sb"
+                  Classes.active="{Binding ActiveAltFilterValue, Converter={StaticResource EqConverter}, ConverterParameter=5000}"/>
+          <Button Content="UNLIM" Command="{Binding SetAltFilterCommand}" CommandParameter="99999" Classes="sb"
+                  Classes.active="{Binding ActiveAltFilterValue, Converter={StaticResource EqConverter}, ConverterParameter=99999}"/>
+        </StackPanel>
+
+        <Border Height="1" Width="200" Background="#33cfff"/>
+
+        <TextBlock Text="MAP ORIENTATION" FontFamily="Montserrat" FontSize="18" FontWeight="Bold"
+                   Foreground="#99cfff" HorizontalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+          <Button Content="N UP" Command="{Binding SetNorthUpCommand}" Classes="sb"
+                  Classes.active="{Binding ActiveOrientationValue, Converter={StaticResource EqConverter}, ConverterParameter=north}"/>
+          <Button Content="TRK UP" Command="{Binding SetTrackUpCommand}" Classes="sb"
+                  Classes.active="{Binding ActiveOrientationValue, Converter={StaticResource EqConverter}, ConverterParameter=track}"/>
+        </StackPanel>
+
+        <Border Height="1" Width="200" Background="#33cfff"/>
+
+        <Button Content="SELECT AIRCRAFT" Command="{Binding SelectAircraftCommand}"
+                HorizontalAlignment="Center" Classes="sb"/>
+
+        <Border Height="1" Width="200" Background="#33cfff"/>
+
+        <Button Content="✕  CLOSE" Command="{Binding CloseSettingsCommand}"
+                HorizontalAlignment="Center" Classes="sb-close"/>
+      </StackPanel>
+    </Border>
+
+    <!-- ══ AIRCRAFT SELECTOR OVERLAY — PNG icons ════════ -->
+    <Border IsVisible="{Binding AircraftSelectorVisible}"
+            Width="480" Height="480" Background="#EB000000" ZIndex="110">
+      <Border.Clip><EllipseGeometry Rect="0,0,480,480"/></Border.Clip>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
+
+        <TextBlock Text="SELECT AIRCRAFT" FontFamily="Montserrat"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="#00cfff" LetterSpacing="1.5"
+                   HorizontalAlignment="Center"/>
+
+        <Grid ColumnDefinitions="110,110,110" RowDefinitions="110,110" Width="330">
+          <Button Grid.Column="0" Grid.Row="0" Width="100" Height="100" Padding="6" Margin="4"
+                  Classes="icon-btn" Command="{Binding SelectAircraftIconCommand}" CommandParameter="default">
+            <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="64" Height="64" ClipToBounds="True" HorizontalAlignment="Center">
+                <Image Source="avares://CockpitDisplay/Assets/icons/default.png" Width="64" Height="64" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+              </Border>
+              <TextBlock Text="Arrow" FontFamily="Montserrat" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#00cfff" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="1" Grid.Row="0" Width="100" Height="100" Padding="6" Margin="4"
+                  Classes="icon-btn" Command="{Binding SelectAircraftIconCommand}" CommandParameter="high_wing">
+            <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="64" Height="64" ClipToBounds="True" HorizontalAlignment="Center">
+                <Image Source="avares://CockpitDisplay/Assets/icons/high_wing.png" Width="64" Height="64" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+              </Border>
+              <TextBlock Text="High Wing" FontFamily="Montserrat" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#00cfff" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="2" Grid.Row="0" Width="100" Height="100" Padding="6" Margin="4"
+                  Classes="icon-btn" Command="{Binding SelectAircraftIconCommand}" CommandParameter="low_wing">
+            <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="64" Height="64" ClipToBounds="True" HorizontalAlignment="Center">
+                <Image Source="avares://CockpitDisplay/Assets/icons/low_wing.png" Width="64" Height="64" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+              </Border>
+              <TextBlock Text="Low Wing" FontFamily="Montserrat" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#00cfff" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="0" Grid.Row="1" Width="100" Height="100" Padding="6" Margin="4"
+                  Classes="icon-btn" Command="{Binding SelectAircraftIconCommand}" CommandParameter="canard">
+            <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="64" Height="64" ClipToBounds="True" HorizontalAlignment="Center">
+                <Image Source="avares://CockpitDisplay/Assets/icons/canard.png" Width="64" Height="64" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+              </Border>
+              <TextBlock Text="Canard" FontFamily="Montserrat" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#00cfff" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="1" Grid.Row="1" Width="100" Height="100" Padding="6" Margin="4"
+                  Classes="icon-btn" Command="{Binding SelectAircraftIconCommand}" CommandParameter="jet">
+            <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="64" Height="64" ClipToBounds="True" HorizontalAlignment="Center">
+                <Image Source="avares://CockpitDisplay/Assets/icons/jet.png" Width="64" Height="64" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+              </Border>
+              <TextBlock Text="Jet" FontFamily="Montserrat" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#00cfff" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="2" Grid.Row="1" Width="100" Height="100" Padding="6" Margin="4"
+                  Classes="icon-btn" Command="{Binding SelectAircraftIconCommand}" CommandParameter="helicopter">
+            <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="64" Height="64" ClipToBounds="True" HorizontalAlignment="Center">
+                <Image Source="avares://CockpitDisplay/Assets/icons/helicopter.png" Width="64" Height="64" Stretch="UniformToFill" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+              </Border>
+              <TextBlock Text="Helo" FontFamily="Montserrat" FontSize="12" FontWeight="SemiBold"
+                         Foreground="#00cfff" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+        </Grid>
+
+        <Button Content="✕  CLOSE" Command="{Binding CloseAircraftSelectorCommand}"
+                HorizontalAlignment="Center" Classes="sb-close"/>
+      </StackPanel>
+    </Border>
+
+    <!-- ══ SPLASH ════════════════════════════════════════ -->
+    <Border x:Name="SplashScreen" Width="480" Height="480"
+            Background="Black" ZIndex="200">
+      <Border.Clip><EllipseGeometry Rect="0,0,480,480"/></Border.Clip>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+        <Path Data="M 50,10 L 62,40 L 95,40 L 68,60 L 78,90 L 50,70 L 22,90 L 32,60 L 5,40 L 38,40 Z"
+              Stretch="Uniform" Width="110" Height="110"
+              Fill="Transparent" Stroke="#00cfff" StrokeThickness="2"/>
+        <TextBlock Text="COCKPIT ADS-B" FontFamily="Montserrat" FontSize="22" FontWeight="Black"
+                   Foreground="#00cfff" LetterSpacing="3" HorizontalAlignment="Center"/>
+        <TextBlock Text="INITIALIZING..." FontFamily="Montserrat" FontSize="14" FontWeight="Bold"
+                   Foreground="#447799" LetterSpacing="2" HorizontalAlignment="Center"/>
+      </StackPanel>
+    </Border>
+
+  </Panel>
+
+  <UserControl.Styles>
+    <Style Selector="Button:pressed">
+      <Setter Property="RenderTransform" Value="none"/>
+    </Style>
+    <Style Selector="Button:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.navbtn:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1A00cfff"/>
+    </Style>
+    <Style Selector="Button.sb">
+      <Setter Property="FontFamily"      Value="Montserrat"/>
+      <Setter Property="Background"      Value="#80001422"/>
+      <Setter Property="BorderBrush"     Value="#5900cfff"/>
+      <Setter Property="BorderThickness" Value="3"/>
+      <Setter Property="Foreground"      Value="#00cfff"/>
+      <Setter Property="FontSize"        Value="20"/>
+      <Setter Property="FontWeight"      Value="Bold"/>
+      <Setter Property="Padding"         Value="12,7"/>
+      <Setter Property="CornerRadius"    Value="4"/>
+    </Style>
+    <Style Selector="Button.sb.active">
+      <Setter Property="Background"  Value="#3300cfff"/>
+      <Setter Property="BorderBrush" Value="#00cfff"/>
+      <Setter Property="Foreground"  Value="White"/>
+    </Style>
+    <Style Selector="Button.sb-close">
+      <Setter Property="FontFamily"      Value="Montserrat"/>
+      <Setter Property="Background"      Value="Transparent"/>
+      <Setter Property="BorderBrush"     Value="#ff4444"/>
+      <Setter Property="BorderThickness" Value="3"/>
+      <Setter Property="Foreground"      Value="#ff4444"/>
+      <Setter Property="FontSize"        Value="22"/>
+      <Setter Property="FontWeight"      Value="Bold"/>
+      <Setter Property="Padding"         Value="17,6"/>
+      <Setter Property="CornerRadius"    Value="8"/>
+    </Style>
+    <Style Selector="Button.icon-btn">
+      <Setter Property="Background"      Value="#1A001422"/>
+      <Setter Property="BorderBrush"     Value="#5900cfff"/>
+      <Setter Property="BorderThickness" Value="3"/>
+      <Setter Property="Padding"         Value="10"/>
+      <Setter Property="CornerRadius"    Value="8"/>
+      <Setter Property="Margin"          Value="4"/>
+    </Style>
+  </UserControl.Styles>
+
+</UserControl>
