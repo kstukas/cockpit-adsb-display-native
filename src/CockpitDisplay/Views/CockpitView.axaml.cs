@@ -132,8 +132,9 @@ public partial class CockpitView : UserControl
     {
         if (_vm == null || _vm.CurrentPage == MapPage.Radar) return;
 
+        int pageMaxZoom = Models.MapPageInfo.MaxZoom(_vm.CurrentPage);
         int tileZoom = (int)Math.Round(_fractionalZoom);
-        tileZoom = Math.Clamp(tileZoom, 7, 13);
+        tileZoom = Math.Clamp(tileZoom, 7, pageMaxZoom);
 
         // Visual scale factor between the fractional zoom and the snapped tile zoom.
         // 2^(fractional - snapped) smoothly scales the tile bitmap during a pinch

@@ -355,7 +355,13 @@
     <Style Selector="Button:pressed /template/ ContentPresenter">
       <Setter Property="Background" Value="Transparent"/>
     </Style>
-    <Style Selector="Button.navbtn:pressed /template/ ContentPresenter">
+    <Style Selector="Button.navbtn">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.navbtn:pointerover">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.navbtn:pressed">
       <Setter Property="Background" Value="#1A00cfff"/>
     </Style>
     <Style Selector="Button.sb">
