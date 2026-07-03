@@ -102,6 +102,12 @@ public static class MapPageInfo
         _             => null,
     };
 
+    public static string? TacPath(MapPage p) => p switch
+    {
+        MapPage.Vfr => "/home/pi/tiles/tac.mbtiles",
+        _           => null,
+    };
+
     public static int MaxZoom(MapPage p) => p switch
     {
         MapPage.Sat   => 12,

@@ -35,6 +35,16 @@ public class MbTilesService : IDisposable
     // ── Get tile bytes for a map page ─────────────────────
     public byte[]? GetTile(MapPage page, int z, int x, int y)
     {
+        // For VFR page, try TAC first (higher-resolution terminal area chart).
+        // Falls back to the sectional chart if TAC has no coverage at this location.
+        string? tacPath = MapPageInfo.TacPath(page);
+        if (tacPath != null)
+        {
+            byte[]? tacTile = GetTile(tacPath, z, x, y);
+            if (tacTile != null)
+                return tacTile;
+        }
+
         string? path = MapPageInfo.TilePath(page);
         if (path == null) return null;
         return GetTile(path, z, x, y);
