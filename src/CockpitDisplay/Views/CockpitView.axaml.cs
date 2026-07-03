@@ -41,12 +41,11 @@ public partial class CockpitView : UserControl
     {
         InitializeComponent();
 
-        // Splash fade after 1.5s
         DispatcherTimer.RunOnce(() =>
         {
             if (SplashScreen != null)
                 SplashScreen.IsVisible = false;
-        }, TimeSpan.FromMilliseconds(1500));
+        }, TimeSpan.FromMilliseconds(2000));
 
         DataContextChanged += (_, _) =>
         {
