@@ -111,7 +111,7 @@ public static class MapPageInfo
     public static int MaxZoom(MapPage p) => p switch
     {
         MapPage.Sat   => 12,
-        MapPage.Vfr   => 11,
+        MapPage.Vfr   => 13,
         MapPage.Ifr   => 11,
         MapPage.Radar => 13,
         _             => 11,
