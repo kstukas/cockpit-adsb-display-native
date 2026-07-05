@@ -5,6 +5,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
 using Avalonia.Threading;
 using CockpitDisplay.Models;
 using CockpitDisplay.ViewModels;
@@ -65,7 +67,8 @@ public partial class CockpitView : UserControl
             panel.Children.Insert(0, _skiaCanvas);
         }
 
-        // Track ownship position for map centering
+        // Track ownship position for map centering; any VM change marks the
+        // scene dirty (ownship fixes, traffic pushes, page/orientation changes)
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.Ownship) && !_userPanning)
@@ -73,17 +76,30 @@ public partial class CockpitView : UserControl
                 _centerLat = _vm.Ownship.DisplayLat;
                 _centerLon = _vm.Ownship.DisplayLon;
             }
+            MarkDirty();
         };
 
-        // 30fps render loop
+        // Render loop, capped at 30fps. Only redraws when something changed
+        // (dirty flag), with a 1s keepalive as a safety net. Between GPS fixes
+        // the scene is static, so skipping identical frames costs nothing
+        // visually and saves most of the CPU at idle.
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         timer.Tick += (_, _) =>
         {
+            _tickCount++;
+            if (!_needsRedraw && _tickCount % 30 != 0) return;
+            _needsRedraw = false;
+
             _skiaCanvas?.InvalidateVisual();
+
             string label = Models.ZoomLabels.Get(_fractionalZoom, _centerLat);
-            var parts = label.Split(' ');
-            ZoomNumberText.Text = parts.Length > 0 ? parts[0] : label;
-            ZoomUnitText.Text   = parts.Length > 1 ? parts[1] : "";
+            if (label != _lastZoomLabel)
+            {
+                _lastZoomLabel = label;
+                var parts = label.Split(' ');
+                ZoomNumberText.Text = parts.Length > 0 ? parts[0] : label;
+                ZoomUnitText.Text   = parts.Length > 1 ? parts[1] : "";
+            }
             if (_vm != null && NorthIndicator.RenderTransform is Avalonia.Media.RotateTransform northRt)
             {
                 northRt.Angle = _vm.Orientation == MapOrientation.Track ? -_vm.Ownship.Track : 0;
@@ -97,12 +113,21 @@ public partial class CockpitView : UserControl
         AddHandler(PointerReleasedEvent, OnPointerReleased, handledEventsToo: true);
     }
 
+    // ── Dirty-flag render gating ──────────────────────────
+    private bool _needsRedraw = true;
+    private int _tickCount;
+    private string _lastZoomLabel = "";
+
+    internal void MarkDirty() => _needsRedraw = true;
+
     // ── SkiaSharp render (called by SkiaCanvas) ───────────
+    // NOTE: runs on Avalonia's RENDER thread (via ICustomDrawOperation), not
+    // the UI thread. Read VM state through atomic snapshots (TrafficSnapshot)
+    // rather than iterating live collections.
     private double _fractionalZoom = 10.0;
 
     internal void Render(SKCanvas canvas, int width, int height)
     {
-        canvas.Clear(SKColors.Transparent);
         if (_vm == null) return;
 
         float cx = width  / 2f;
@@ -125,10 +150,16 @@ public partial class CockpitView : UserControl
     }
 
     // ── Tile rendering ────────────────────────────────────
-    private readonly Dictionary<string, SKBitmap?> _tileCache = new();
+    // Decoded-bitmap cache. 128 entries ≈ 33 MB worst case; the round 480px
+    // viewport shows at most ~25 tiles, so this holds several screens' worth.
+    // Evicts only tiles not used in the current frame (never the visible set).
+    private readonly Dictionary<string, (SKBitmap? Bmp, int LastUsedFrame)> _tileCache = new();
+    private const int MaxTileCacheEntries = 128;
+    private int _frameCounter;
 
     private void DrawTiles(SKCanvas canvas, float cx, float cy, int w, int h)
     {
+        _frameCounter++;
         if (_vm == null || _vm.CurrentPage == MapPage.Radar) return;
 
         int pageMaxZoom = Models.MapPageInfo.MaxZoom(_vm.CurrentPage);
@@ -168,12 +199,30 @@ public partial class CockpitView : UserControl
     private SKBitmap? GetTileBitmap(int z, int x, int y)
     {
         string key = $"{(int)(_vm?.CurrentPage ?? 0)}:{z}/{x}/{y}";
-        if (_tileCache.TryGetValue(key, out var cached)) return cached;
+        if (_tileCache.TryGetValue(key, out var cached))
+        {
+            _tileCache[key] = (cached.Bmp, _frameCounter);
+            return cached.Bmp;
+        }
+
         var data = _vm?.GetTile(z, x, y);
         SKBitmap? bmp = null;
         if (data != null) try { bmp = SKBitmap.Decode(data); } catch { }
-        if (_tileCache.Count > 256) _tileCache.Clear();
-        _tileCache[key] = bmp;
+
+        if (_tileCache.Count >= MaxTileCacheEntries)
+        {
+            // Evict tiles not touched this frame; visible tiles always survive
+            foreach (var stale in _tileCache
+                         .Where(kv => kv.Value.LastUsedFrame != _frameCounter)
+                         .Select(kv => kv.Key)
+                         .ToList())
+            {
+                _tileCache[stale].Bmp?.Dispose();
+                _tileCache.Remove(stale);
+            }
+        }
+
+        _tileCache[key] = (bmp, _frameCounter);
         return bmp;
     }
 
@@ -327,7 +376,10 @@ public partial class CockpitView : UserControl
         double pxPerDegLon = 256.0 * Math.Pow(2, _fractionalZoom) / 360.0;
         double pxPerDegLat = pxPerDegLon / Math.Cos(GeoMath.ToRad(_centerLat));
 
-        foreach (var t in _vm.Traffic)
+        // Immutable snapshot — safe to iterate on the render thread while the
+        // UI thread replaces it on the next traffic push
+        var traffic = _vm.TrafficSnapshot;
+        foreach (var t in traffic)
         {
             if (!t.PositionValid) continue;
 
@@ -447,6 +499,7 @@ public partial class CockpitView : UserControl
             // log2(ratio) gives continuous zoom delta: doubling distance = +1 zoom level
             double zoomDelta = Math.Log2(Math.Max(ratio, 0.01));
             _fractionalZoom = Math.Clamp(_pinchStartZoom + zoomDelta, 7.0, 13.0);
+            MarkDirty();
         }
         else if (_userPanning && _touchPoints.Count == 1)
         {
@@ -454,6 +507,7 @@ public partial class CockpitView : UserControl
             double pxPerDegLat = pxPerDegLon / Math.Cos(GeoMath.ToRad(_centerLat));
             _centerLon = _panStartLon - (pt.X - _panStart.X) / pxPerDegLon;
             _centerLat = _panStartLat + (pt.Y - _panStart.Y) / pxPerDegLat;
+            MarkDirty();
         }
     }
 
@@ -478,6 +532,7 @@ public partial class CockpitView : UserControl
                         _centerLat = _vm.Ownship.DisplayLat;
                         _centerLon = _vm.Ownship.DisplayLon;
                     }
+                    MarkDirty();
                 };
                 _recenterTimer.Start();
             }
@@ -494,10 +549,20 @@ public partial class CockpitView : UserControl
 }
 
 // ── SkiaSharp canvas control ──────────────────────────────
-// Renders the map/ownship/traffic/rings layer behind the AXAML HUD
+// Renders the map/ownship/traffic/rings layer behind the AXAML HUD.
+//
+// Primary path: ICustomDrawOperation + ISkiaSharpApiLeaseFeature draws
+// directly into Avalonia's own Skia canvas — zero copies, no intermediate
+// surface, no encode/decode. (The old implementation PNG-encoded and
+// re-decoded every frame, which dominated frame time on the Pi.)
+//
+// Fallback path (if the renderer ever isn't Skia-backed): render into a
+// reused WriteableBitmap's raw pixel buffer — still no compression.
 internal class SkiaCanvas : Control
 {
     private readonly CockpitView _parent;
+    private static volatile bool s_useLease = true;
+    private WriteableBitmap? _fallbackBitmap;
 
     public SkiaCanvas(CockpitView parent)
     {
@@ -507,21 +572,68 @@ internal class SkiaCanvas : Control
 
     public override void Render(DrawingContext context)
     {
-        var bounds = Bounds;
-        int w = (int)bounds.Width;
-        int h = (int)bounds.Height;
+        int w = (int)Bounds.Width;
+        int h = (int)Bounds.Height;
         if (w <= 0 || h <= 0) return;
 
-        var info = new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(info);
-        if (surface == null) return;
+        if (s_useLease)
+            context.Custom(new SkiaLeaseDrawOp(new Rect(0, 0, w, h), _parent, this));
+        else
+            RenderViaBitmap(context, w, h);
+    }
 
-        _parent.Render(surface.Canvas, w, h);
+    private void RenderViaBitmap(DrawingContext context, int w, int h)
+    {
+        _fallbackBitmap ??= new WriteableBitmap(
+            new PixelSize(w, h), new Vector(96, 96),
+            Avalonia.Platform.PixelFormat.Bgra8888,
+            Avalonia.Platform.AlphaFormat.Premul);
 
-        using var skImage = surface.Snapshot();
-        using var skData  = skImage.Encode(SKEncodedImageFormat.Png, 100);
-        using var ms      = new MemoryStream(skData.ToArray());
-        var bmp = new Avalonia.Media.Imaging.Bitmap(ms);
-        context.DrawImage(bmp, new Rect(0, 0, w, h));
+        using (var fb = _fallbackBitmap.Lock())
+        {
+            var info = new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info, fb.Address, fb.RowBytes);
+            if (surface == null) return;
+            surface.Canvas.Clear(SKColors.Transparent);
+            _parent.Render(surface.Canvas, w, h);
+            surface.Canvas.Flush();
+        }
+        context.DrawImage(_fallbackBitmap, new Rect(0, 0, w, h));
+    }
+
+    private class SkiaLeaseDrawOp : ICustomDrawOperation
+    {
+        private readonly CockpitView _parent;
+        private readonly SkiaCanvas _owner;
+
+        public SkiaLeaseDrawOp(Rect bounds, CockpitView parent, SkiaCanvas owner)
+        {
+            Bounds  = bounds;
+            _parent = parent;
+            _owner  = owner;
+        }
+
+        public Rect Bounds { get; }
+        public void Dispose() { }
+        public bool HitTest(Point p) => false;
+        public bool Equals(ICustomDrawOperation? other) => false;
+
+        public void Render(ImmediateDrawingContext context)
+        {
+            var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (leaseFeature == null)
+            {
+                // Renderer isn't Skia-backed — switch to bitmap fallback permanently
+                s_useLease = false;
+                Dispatcher.UIThread.Post(() => _owner.InvalidateVisual());
+                return;
+            }
+
+            using var lease = leaseFeature.Lease();
+            var canvas = lease.SkCanvas;
+            int save = canvas.Save();
+            _parent.Render(canvas, (int)Bounds.Width, (int)Bounds.Height);
+            canvas.RestoreToCount(save);
+        }
     }
 }

@@ -42,6 +42,18 @@ public partial class MainViewModel : ObservableObject
     // ── Traffic ───────────────────────────────────────────
     public ObservableCollection<TrafficTarget> Traffic { get; } = new();
 
+    // Immutable list swapped atomically on each traffic push. The SkiaSharp
+    // renderer runs on the render thread and iterates this snapshot instead
+    // of the live ObservableCollection (which the UI thread mutates).
+    // Raises PropertyChanged on every push so the view's dirty flag trips
+    // even when the target count is unchanged.
+    private IReadOnlyList<TrafficTarget> _trafficSnapshot = Array.Empty<TrafficTarget>();
+    public IReadOnlyList<TrafficTarget> TrafficSnapshot
+    {
+        get => _trafficSnapshot;
+        private set => SetProperty(ref _trafficSnapshot, value);
+    }
+
     // ── Alerts ───────────────────────────────────────────
     [ObservableProperty] private bool _proximateAlert;
 
@@ -129,6 +141,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var t in filtered)
             Traffic.Add(t);
 
+        TrafficSnapshot = filtered;
         TrafficCount   = filtered.Count;
         ProximateAlert = filtered.Any(t => t.ThreatLevel == ThreatLevel.Proximate);
         WxFresh        = _stratux.IsWxFresh();

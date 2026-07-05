@@ -27,10 +27,12 @@ public class MbTilesService : IDisposable
     private readonly Dictionary<string, SqliteCommand> _tileCommands = new();
     private readonly Lock _lock = new();
 
-    // Simple in-memory tile cache to avoid re-reading hot tiles
-    // Key: "path:z/x/y", Value: raw bytes (null = empty tile at this coord)
+    // Simple in-memory tile cache to avoid re-reading hot tiles.
+    // Key: "path:z/x/y", Value: raw bytes (null = empty tile at this coord).
+    // Kept small — the view layer caches decoded bitmaps in front of this,
+    // so this mostly serves null results (TAC misses) and re-decodes.
     private readonly Dictionary<string, byte[]?> _cache = new();
-    private const int MaxCacheEntries = 512;
+    private const int MaxCacheEntries = 128;
 
     // ── Get tile bytes for a map page ─────────────────────
     public byte[]? GetTile(MapPage page, int z, int x, int y)
